@@ -53,8 +53,8 @@ jobs:
         env:
           ENV: development
           SECRET_KEY: ci-test-secret-key-long-enough
-          DATABASE_URL: sqlite+aiosqlite:///:memory:
-          SYNC_DATABASE_URL: sqlite:///:memory:
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+          SYNC_DATABASE_URL: "sqlite:///:memory:"
         run: |
           python -m pytest -q --tb=short
 
