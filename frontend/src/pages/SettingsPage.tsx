@@ -991,7 +991,7 @@ export default function SettingsPage() {
               )}
 
               {!healthLoading && healthError && !health && (
-                <div className="mt-6 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-[12px] text-red-700 dark:border-red-900/40 dark:bg-red-500/10 dark:text-red-400">
+                <div className="mt-6 flex items-start gap-2 rounded-lg border border-danger/20 bg-danger/10 px-3 py-2.5 text-[12px] text-danger">
                   <AlertCircle size={14} className="mt-0.5 shrink-0" />
                   <span>{healthError}</span>
                 </div>
@@ -1031,11 +1031,11 @@ export default function SettingsPage() {
                           <span
                             className={clsx(
                               'mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-full',
-                              !status.ok
-                                ? 'bg-red-500'
-                                : isYellow
-                                  ? 'bg-amber-500'
-                                  : 'bg-emerald-500',
+                                !status.ok
+                                  ? 'bg-danger'
+                                  : isYellow
+                                    ? 'bg-warning'
+                                    : 'bg-success',
                             )}
                             aria-hidden
                           />

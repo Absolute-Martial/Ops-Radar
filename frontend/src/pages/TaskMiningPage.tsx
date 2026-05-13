@@ -227,10 +227,10 @@ export default function TaskMiningPage() {
                               className={clsx(
                                 'h-full rounded-full',
                                 p.automatable_score > 0.7
-                                  ? 'bg-emerald-500'
+                                  ? 'bg-success'
                                   : p.automatable_score > 0.4
-                                    ? 'bg-amber-500'
-                                    : 'bg-rose-500',
+                                    ? 'bg-warning'
+                                    : 'bg-danger',
                               )}
                               style={{ width: `${p.automatable_score * 100}%` }}
                             />
@@ -238,7 +238,7 @@ export default function TaskMiningPage() {
                           <span className="tabular-nums text-[11px] text-fg-muted">
                             {(p.automatable_score * 100).toFixed(0)}%
                           </span>
-                          {p.automatable_score > 0.7 && <Zap size={11} className="text-emerald-500" />}
+                          {p.automatable_score > 0.7 && <Zap size={11} className="text-success" />}
                         </div>
                       </td>
                       <td className="px-3 py-3 align-top">
