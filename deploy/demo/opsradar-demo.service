@@ -1,0 +1,46 @@
+# Systemd unit for the OpsRadar demo instance.
+#
+# Install:
+#     sudo cp opsradar-demo.service /etc/systemd/system/
+#     sudo systemctl daemon-reload
+#     sudo systemctl enable --now opsradar-demo.service
+#
+# This unit only starts/stops the Docker Compose stack. The
+# ``restart: unless-stopped`` policy inside docker-compose.yml is
+# what keeps individual containers alive between unit starts, and
+# the demo seeder inside the backend lifespan hook is what
+# repopulates the database on every boot.
+#
+# Demo behaviour is enabled by ``DEMO_MODE=1`` in /srv/opsradar/.env
+# — there is no separate compose override.
+
+[Unit]
+Description=OpsRadar demo stack (docker compose)
+Documentation=https://github.com/Absolute-Martial/Ops-Radar
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/srv/opsradar
+# --- Startup ---
+# docker compose returns 0 as soon as the containers are created;
+# healthchecks then bring services into the running state.
+ExecStart=/usr/bin/docker compose up -d --remove-orphans
+# --- Shutdown ---
+ExecStop=/usr/bin/docker compose down
+# --- Reload ---
+# `systemctl reload opsradar-demo` pulls the latest images (e.g. after
+# a git pull) and rebuilds without a full stop — useful for rolling
+# updates that don't interrupt the demo.
+ExecReload=/usr/bin/docker compose up -d --build
+
+TimeoutStartSec=180
+TimeoutStopSec=60
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

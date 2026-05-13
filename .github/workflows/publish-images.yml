@@ -1,0 +1,94 @@
+name: Publish Images
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Build and push GHCR images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare image names and tags
+        id: prep
+        shell: bash
+        run: |
+          OWNER_LC="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          SHORT_SHA="${GITHUB_SHA::12}"
+          BACKEND_IMAGE="ghcr.io/${OWNER_LC}/ops-radar-backend"
+          FRONTEND_IMAGE="ghcr.io/${OWNER_LC}/ops-radar-frontend"
+
+          {
+            echo "backend_image=${BACKEND_IMAGE}"
+            echo "frontend_image=${FRONTEND_IMAGE}"
+            echo "backend_ref=${BACKEND_IMAGE}:sha-${SHORT_SHA}"
+            echo "frontend_ref=${FRONTEND_IMAGE}:sha-${SHORT_SHA}"
+            echo "backend_tags<<EOF"
+            echo "${BACKEND_IMAGE}:sha-${SHORT_SHA}"
+            if [ "${GITHUB_REF_TYPE}" = "branch" ] && [ "${GITHUB_REF_NAME}" = "main" ]; then
+              echo "${BACKEND_IMAGE}:latest"
+            fi
+            if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+              echo "${BACKEND_IMAGE}:${GITHUB_REF_NAME}"
+            fi
+            echo "EOF"
+            echo "frontend_tags<<EOF"
+            echo "${FRONTEND_IMAGE}:sha-${SHORT_SHA}"
+            if [ "${GITHUB_REF_TYPE}" = "branch" ] && [ "${GITHUB_REF_NAME}" = "main" ]; then
+              echo "${FRONTEND_IMAGE}:latest"
+            fi
+            if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+              echo "${FRONTEND_IMAGE}:${GITHUB_REF_NAME}"
+            fi
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          build-contexts: |
+            examples=./docs/examples
+          push: true
+          tags: ${{ steps.prep.outputs.backend_tags }}
+          cache-from: type=gha,scope=backend-publish
+          cache-to: type=gha,mode=max,scope=backend-publish
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.prep.outputs.frontend_tags }}
+          cache-from: type=gha,scope=frontend-publish
+          cache-to: type=gha,mode=max,scope=frontend-publish
+
+      - name: Validate compose with published image refs
+        env:
+          SECRET_KEY: ci-placeholder-secret-key
+          POSTGRES_PASSWORD: ci-placeholder-postgres-password
+          REDIS_PASSWORD: ci-placeholder-redis-password
+          OPSRADAR_BACKEND_IMAGE: ${{ steps.prep.outputs.backend_ref }}
+          OPSRADAR_FRONTEND_IMAGE: ${{ steps.prep.outputs.frontend_ref }}
+        run: docker compose config > /tmp/opsradar.compose.rendered.yml

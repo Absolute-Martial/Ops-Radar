@@ -1,0 +1,36 @@
+# Production override for docker-compose.yml.
+#
+# Activate with:
+#
+#     docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --build
+#
+# This profile keeps the application containers on the private
+# opsradar network and adds a dedicated Nginx edge proxy on port 80.
+# The proxy serves the SPA and forwards /api, /health, and docs routes
+# to the backend/frontend containers over the internal network.
+
+services:
+  frontend:
+    ports: !override []
+
+  proxy:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "${OPS_RADAR_PUBLIC_PORT:-80}:80"
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    networks:
+      - opsradar
+    security_opt:
+      - no-new-privileges:true

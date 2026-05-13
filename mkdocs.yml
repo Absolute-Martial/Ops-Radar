@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://squidfunk.github.io/mkdocs-material/schema.json
+site_name: OpsRadar Operator Docs
+site_url: http://localhost:8000
+repo_url: https://github.com/Absolute-Martial/Ops-Radar
+repo_name: OpsRadar
+docs_dir: docs
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+nav:
+  - Home: index.md
+  - Operators:
+      - Overview: operators/overview.md
+      - Request Lifecycle: operators/request-lifecycle.md
+      - Roles And Ownership: operators/roles-and-ownership.md
+      - Slack Intake: operators/slack-intake.md
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.highlight:
+      anchor_linenums: true
+plugins:
+  - search
