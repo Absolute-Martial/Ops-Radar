@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -14,6 +14,12 @@ from app.models import ProcessTemplate, User
 from app.api.deps import get_current_active_user, require_admin, require_analyst
 
 router = APIRouter()
+
+
+TEMPLATE_CATEGORY_ALIASES: dict[str, set[str]] = {
+    "flowfix": {"flowfix", "opsradar"},
+    "opsradar": {"flowfix", "opsradar"},
+}
 
 
 # -- Inline schemas for templates --
@@ -55,7 +61,12 @@ async def list_templates(
     """List all process templates, optionally filtered by category."""
     query = select(ProcessTemplate)
     if category is not None:
-        query = query.where(ProcessTemplate.category == category)
+        normalized = category.strip().lower()
+        alias_group = TEMPLATE_CATEGORY_ALIASES.get(normalized)
+        if alias_group is not None:
+            query = query.where(func.lower(ProcessTemplate.category).in_(alias_group))
+        else:
+            query = query.where(func.lower(ProcessTemplate.category) == normalized)
     query = query.order_by(ProcessTemplate.name).limit(limit).offset(offset)
 
     result = await db.execute(query)
