@@ -253,8 +253,9 @@ async def test_op_request_submit_falls_back_to_admin_when_no_other_approver_exis
     approvals = approvals_response.json()
     assert len(approvals) == 1
     approval = approvals[0]
-    assert approval["approver_user_id"] == str(requester.id)
-    assert approval["approver_email"] == requester.email
+    assert approval["approver_role_key"] == "super_admin"
+    assert approval["approver_user_id"] != str(requester.id)
+    assert approval["approver_email"].endswith("@example.com")
 
     inbox_response = await client.get(
         "/api/v1/op-approvals/inbox",
