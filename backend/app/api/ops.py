@@ -356,6 +356,8 @@ async def _create_initial_approvals(
     db: AsyncSession, request_row: OpRequest, actor: User | None
 ) -> list[OpApproval]:
     approvers = await _resolve_request_approvers(db, request_row)
+    if not approvers and actor and actor.role == UserRole.admin:
+        approvers = [("super_admin", actor)]
     created: list[OpApproval] = []
     for item in approvers:
         if isinstance(item, tuple):

@@ -196,6 +196,31 @@ docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --bu
 That profile publishes the public edge on port 80 by default. Override
 `OPS_RADAR_PUBLIC_PORT` if your deployment needs a different host port.
 
+## Vercel Deployment
+
+Vercel is a good fit for the React/Vite frontend, but not for the full
+FastAPI + Celery + PostgreSQL backend stack. Deploy the frontend on
+Vercel and keep the backend on a separate host.
+
+Frontend setup on Vercel:
+
+1. Set the Vercel project root to `frontend/`.
+2. Use the default build command from `frontend/vercel.json`:
+   `npm run build`.
+3. Set `VITE_API_BASE_URL` to the backend API origin, for example:
+
+```text
+https://your-backend.example.com/api/v1
+```
+
+4. Keep the backend CORS allowlist aligned with the deployed frontend
+   origin.
+5. If you use dashboard collaboration or other WebSocket features, the
+   frontend will derive the WebSocket URL from `VITE_API_BASE_URL`.
+
+The frontend still works locally with the default relative `/api/v1`
+base URL, so you do not need a separate env file for local Docker dev.
+
 ## Documentation
 
 Operator docs are provided with MkDocs Material.

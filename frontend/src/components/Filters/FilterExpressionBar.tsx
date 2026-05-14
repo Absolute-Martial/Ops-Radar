@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Terminal, Play } from 'lucide-react';
 import { useFilterStore } from '@/store/filterStore';
 import { getAuthToken } from '@/utils/storage';
+import { buildApiUrl } from '@/utils/runtimeUrls';
 
 // Apromore-style filter expression input. Users type a tiny DSL:
 //
@@ -20,11 +21,11 @@ export default function FilterExpressionBar({ eventLogId }: { eventLogId: string
 
   const run = async () => {
     if (!expr.trim()) return;
-    setRunning(true);
-    setWarnings([]);
-    try {
-      const res = (await (
-        await fetch('/api/v1/competitive/filter-expression', {
+      setRunning(true);
+      setWarnings([]);
+      try {
+        const res = (await (
+        await fetch(buildApiUrl('/competitive/filter-expression'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

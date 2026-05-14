@@ -221,6 +221,53 @@ async def test_op_request_lifecycle_approve_flow(client, make_user, monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_op_request_submit_falls_back_to_admin_when_no_other_approver_exists(client, make_user):
+    requester, requester_token = await make_user(role=UserRole.admin)
+
+    workspace_id = await _create_project(
+        client,
+        requester_token,
+        name=f"Ops Lifecycle Fallback {uuid.uuid4().hex[:8]}",
+    )
+    created = await _create_request(
+        client,
+        requester_token,
+        workspace_id=workspace_id,
+        title="HR onboarding access for new hire",
+    )
+
+    submit_response = await client.post(
+        f"/api/v1/op-requests/{created['id']}/submit",
+        headers=auth_header(requester_token),
+    )
+    assert submit_response.status_code == 200, submit_response.text
+
+    submitted = submit_response.json()
+    assert submitted["status"] == "pending_approval"
+
+    approvals_response = await client.get(
+        f"/api/v1/op-requests/{created['id']}/approvals",
+        headers=auth_header(requester_token),
+    )
+    assert approvals_response.status_code == 200, approvals_response.text
+    approvals = approvals_response.json()
+    assert len(approvals) == 1
+    approval = approvals[0]
+    assert approval["approver_user_id"] == str(requester.id)
+    assert approval["approver_email"] == requester.email
+
+    inbox_response = await client.get(
+        "/api/v1/op-approvals/inbox",
+        headers=auth_header(requester_token),
+    )
+    assert inbox_response.status_code == 200, inbox_response.text
+    inbox = inbox_response.json()
+    assert len(inbox) == 1
+    assert inbox[0]["request_id"] == created["id"]
+    assert inbox[0]["status"] == "pending"
+
+
+@pytest.mark.asyncio
 async def test_op_request_lifecycle_reject_flow(client, make_user, monkeypatch):
     requester, requester_token = await make_user(role=UserRole.analyst)
     approver, approver_token = await make_user(role=UserRole.admin)

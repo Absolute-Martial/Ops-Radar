@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '@/store';
+import { buildWebSocketUrl } from '@/utils/runtimeUrls';
 
 export interface PresenceMessage {
   type: 'presence';
@@ -33,9 +34,8 @@ export function useDashboardCollab(dashboardId: string | undefined) {
   useEffect(() => {
     if (!dashboardId) return;
 
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const label = encodeURIComponent(user?.email || 'anonymous');
-    const url = `${proto}://${window.location.host}/api/v1/streaming/ws/dashboards/${dashboardId}?user=${label}`;
+    const url = buildWebSocketUrl(`/streaming/ws/dashboards/${dashboardId}?user=${label}`);
     const ws = new WebSocket(url);
     wsRef.current = ws;
 

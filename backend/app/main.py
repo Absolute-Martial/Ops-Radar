@@ -10,6 +10,7 @@ from starlette.requests import Request as StarletteRequest
 
 from app.config import settings
 from app.database import init_db
+from app.mcp.server_remote import create_streamable_http_app, get_opsreader_remote_server
 from app.services.audit import AuditLogMiddleware
 from app.services.logging_setup import configure_logging, init_sentry, request_id_ctx
 from app.services.rate_limit import limiter, rate_limit_handler
@@ -53,7 +54,8 @@ async def lifespan(app: FastAPI):
         except Exception:
             logger.exception("sample-data seed failed — continuing anyway")
 
-    yield
+    async with get_opsreader_remote_server().session_manager.run():
+        yield
     # Shutdown (cleanup if needed)
 
 
@@ -71,6 +73,23 @@ app = FastAPI(
     redoc_url=None if _IS_PRODUCTION else "/redoc",
     openapi_url=None if _IS_PRODUCTION else "/openapi.json",
 )
+
+# Remote OpsReader MCP endpoint. Mounted under /mcp so the effective
+# Streamable HTTP path is exactly /mcp. Auth is enforced inside the
+# mounted ASGI app using the same JWT / API-key logic as the REST API.
+app.mount("/mcp", create_streamable_http_app())
+
+
+@app.api_route("/mcp", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
+async def mcp_root_redirect() -> RedirectResponse:
+    """Normalize /mcp requests to the mounted Streamable HTTP app.
+
+    FastAPI mounts expose the child app at ``/mcp/``. Keep the public
+    endpoint ergonomic and stable by redirecting the bare path while
+    preserving the original HTTP method and request body semantics.
+    """
+
+    return RedirectResponse(url="/mcp/", status_code=307)
 
 # CORS middleware. `allow_credentials=True` requires an explicit origin
 # allowlist (which we have). Methods and headers are restricted to

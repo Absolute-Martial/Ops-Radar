@@ -38,9 +38,8 @@ cryptography
 # but ship them in the base image so configured providers actually run.
 openai
 anthropic
-# Anthropic's Model Context Protocol SDK — backs the optional
-# ``flowminer-mcp`` server in app/mcp/ which exposes the mining
-# endpoints as MCP tools for Claude Desktop, Cursor, Zed, etc.
+# Model Context Protocol SDK — backs the OpsReader MCP interface in
+# app/mcp/ for local stdio clients and remote authenticated HTTP mode.
 mcp
 # Backs the operator CLI at app/cli.py (``python -m app.cli``) —
 # tiny click-based framework for the user-management subcommands.

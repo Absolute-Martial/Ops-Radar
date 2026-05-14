@@ -1,12 +1,12 @@
-"""OpsRadar MCP server — stdio mode.
+"""OpsReader MCP server — stdio mode.
 
-Exposes the mining engine as MCP tools so any MCP-aware client (Claude
-Desktop, Cursor, Zed, Bedrock, etc.) can ask questions about a
-OpsRadar event log and get back grounded numeric answers.
+Exposes OpsRadar process intelligence and request-coordination tools so
+any MCP-aware client can ask questions about event logs, workflow
+friction, approvals, and request state using stdio transport.
 
 Run from inside the backend container:
 
-    docker exec -it processmining-backend-1 python3 -m app.mcp.server
+    docker exec -it opsradar-backend-1 python3 -m app.mcp.server
 
 Authentication
 --------------
@@ -33,6 +33,7 @@ from uuid import UUID
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
+from app.mcp.tools_requests import REQUEST_TOOL_DISPATCH, REQUEST_TOOL_SCHEMAS
 
 logger = logging.getLogger("opsradar.mcp")
 
@@ -203,6 +204,7 @@ _TOOL_SCHEMAS: list[Tool] = [
         },
     ),
 ]
+_TOOL_SCHEMAS.extend(REQUEST_TOOL_SCHEMAS)
 
 
 # ── Request context ──────────────────────────────────────────────────
@@ -426,6 +428,7 @@ _DISPATCH = {
     "get_insights": _tool_get_insights,
     "ask_natural_language": _tool_ask_natural_language,
 }
+_DISPATCH.update(REQUEST_TOOL_DISPATCH)
 
 
 # ── Server wiring ────────────────────────────────────────────────────
@@ -454,7 +457,11 @@ def _build_server() -> Server:
 
 async def _async_main() -> None:
     logging.basicConfig(
-        level=os.getenv("FLOWMINER_MCP_LOG_LEVEL", "INFO"),
+        level=(
+            os.getenv("OPS_RADAR_MCP_LOG_LEVEL")
+            or os.getenv("FLOWMINER_MCP_LOG_LEVEL")
+            or "INFO"
+        ),
         format="%(asctime)s %(name)s [%(levelname)s] %(message)s",
         stream=sys.stderr,
     )

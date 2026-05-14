@@ -63,6 +63,18 @@ async def get_current_user(
 
     Raises HTTP 401 if neither path resolves to an active user.
     """
+    return await resolve_bearer_token_user(token, db)
+
+
+async def resolve_bearer_token_user(
+    token: str,
+    db: AsyncSession,
+) -> User:
+    """Resolve a JWT or ``fmk_`` API key into an authenticated user.
+
+    This is the shared auth primitive for REST dependencies and the
+    remote OpsReader MCP transport.
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",

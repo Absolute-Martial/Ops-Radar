@@ -73,11 +73,12 @@ import type {
   TimestampRepairResult,
 } from '@/types';
 import { clearAuthToken, getAuthToken } from '@/utils/storage';
+import { buildApiUrl, getApiBaseUrl } from '@/utils/runtimeUrls';
 
 // ─── Axios Instance ──────────────────────────────────────────────────────────
 
 const api: AxiosInstance = axios.create({
-  baseURL: '/api/v1',
+  baseURL: getApiBaseUrl(),
   headers: { 'Content-Type': 'application/json' },
   timeout: 120000, // 2 minutes — mining operations can be slow
 });
@@ -1764,7 +1765,7 @@ export const ai = {
     handlers: ChatStreamHandlers,
   ): Promise<void> => {
     const token = getAuthToken();
-    const response = await fetch('/api/v1/ai/chat', {
+    const response = await fetch(buildApiUrl('/ai/chat'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
