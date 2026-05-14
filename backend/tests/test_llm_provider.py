@@ -26,7 +26,8 @@ def test_openai_compatible_complete_uses_configured_base_url(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "openai", fake_module)
     monkeypatch.setattr(llm, "_from_system_settings", lambda _key: None)
-    monkeypatch.setenv("FLOWMINER_LLM_PROVIDER", "openai_compatible")
+    monkeypatch.delenv("FLOWMINER_LLM_PROVIDER", raising=False)
+    monkeypatch.setenv("OPS_RADAR_LLM_PROVIDER", "openai_compatible")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("OPENAI_MODEL", "test-model")
     monkeypatch.setenv("OPENAI_BASE_URL", "https://llm.example.com/v1")
@@ -38,7 +39,8 @@ def test_openai_compatible_complete_uses_configured_base_url(monkeypatch):
 
 def test_openai_compatible_requires_base_url(monkeypatch):
     monkeypatch.setattr(llm, "_from_system_settings", lambda _key: None)
-    monkeypatch.setenv("FLOWMINER_LLM_PROVIDER", "openai_compatible")
+    monkeypatch.delenv("FLOWMINER_LLM_PROVIDER", raising=False)
+    monkeypatch.setenv("OPS_RADAR_LLM_PROVIDER", "openai_compatible")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
 
