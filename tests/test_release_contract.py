@@ -53,6 +53,11 @@ def test_publish_workflow_has_ghcr_write_permissions() -> None:
 
 
 def test_publish_workflow_pushes_backend_and_frontend_images() -> None:
+    """
+    Verifies the publish-images workflow references required Docker actions and pushes backend and frontend images to GHCR.
+    
+    Checks that the workflow text includes the Docker actions used for login, metadata, and build/push; that backend and frontend image identifiers are present; and that the workflow enables pushing to ghcr.io.
+    """
     workflow_text = (ROOT / ".github/workflows/publish-images.yml").read_text(
         encoding="utf-8"
     )
@@ -67,6 +72,11 @@ def test_publish_workflow_pushes_backend_and_frontend_images() -> None:
 
 
 def test_release_workflow_creates_github_release_for_version_tags() -> None:
+    """
+    Verify the release workflow creates a GitHub release for version tags and references expected files and images.
+    
+    Asserts that the workflow's push trigger includes tag pattern `v*`, that `workflow_dispatch` is enabled, and that workflow-level `permissions.contents` is set to `write`. Also asserts the release job uses `softprops/action-gh-release@v2`, references `CHANGELOG.md` and `QUICKSTART.md`, and includes GHCR image references for the backend and frontend using `ghcr.io/${OWNER_LC}/...:${TAG}`.
+    """
     workflow = _load_yaml(".github/workflows/release.yml")
     workflow_text = (ROOT / ".github/workflows/release.yml").read_text(
         encoding="utf-8"
@@ -84,6 +94,11 @@ def test_release_workflow_creates_github_release_for_version_tags() -> None:
 
 
 def test_release_docs_exist_and_describe_tag_flow() -> None:
+    """
+    Verify release documentation exists and describes the tag-based release flow.
+    
+    Asserts that CHANGELOG.md contains the initial preview version and a Known limitations section, and that RELEASE.md documents creating a v0.1.0-preview tag, references GHCR, and states that the first registered user becomes the instance admin.
+    """
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     release_doc = (ROOT / "RELEASE.md").read_text(encoding="utf-8")
 
@@ -95,6 +110,11 @@ def test_release_docs_exist_and_describe_tag_flow() -> None:
 
 
 def test_ci_lints_workflows_with_pinned_actionlint_install() -> None:
+    """
+    Verify the CI workflow installs actionlint via a pinned ACTIONLINT_REF and download-install flow, places the binary under ${HOME}/.local/bin, and does not reference unpinned or main action refs.
+    
+    The test asserts the workflow file derives ACTIONLINT_VERSION from ACTIONLINT_REF, invokes download-actionlint.bash with that version, references the downloaded rhysd/actionlint/${ACTIONLINT_REF} path and the installed actionlint binary, and does not contain rhysd/actionlint@v1 or rhysd/actionlint/main.
+    """
     ci_text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
     assert "rhysd/actionlint@v1" not in ci_text
