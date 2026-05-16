@@ -16,10 +16,11 @@ jobs:
       - name: Install actionlint
         shell: bash
         run: |
-          ACTIONLINT_REF="v1.7.9"  # pin intentionally (tag or commit SHA)
-          curl -sSfL "https://raw.githubusercontent.com/rhysd/actionlint/${ACTIONLINT_REF}/scripts/download-actionlint.bash" -o /tmp/download-actionlint.bash
+          ACTIONLINT_TAG="v1.7.9"       # Git ref used to fetch the installer script
+          ACTIONLINT_VERSION="1.7.9"    # Installer expects plain semver, not v-prefixed tag
+          curl -sSfL "https://raw.githubusercontent.com/rhysd/actionlint/${ACTIONLINT_TAG}/scripts/download-actionlint.bash" -o /tmp/download-actionlint.bash
           mkdir -p "${HOME}/.local/bin"
-          bash /tmp/download-actionlint.bash "${ACTIONLINT_REF}" "${HOME}/.local/bin"
+          bash /tmp/download-actionlint.bash "${ACTIONLINT_VERSION}" "${HOME}/.local/bin"
           echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
 
       - name: Run actionlint
