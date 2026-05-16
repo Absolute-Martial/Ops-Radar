@@ -96,9 +96,9 @@ def test_ci_lints_workflows_with_pinned_actionlint_install() -> None:
     ci_text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
     assert "rhysd/actionlint@v1" not in ci_text
-    assert "ACTIONLINT_TAG=\"v1.7.9\"" in ci_text
-    assert "ACTIONLINT_VERSION=\"1.7.9\"" in ci_text
-    assert "rhysd/actionlint/${ACTIONLINT_TAG}" in ci_text
+    assert "ACTIONLINT_REF=\"v1.7.9\"" in ci_text
+    assert "ACTIONLINT_VERSION=\"${ACTIONLINT_REF#v}\"" in ci_text
+    assert "rhysd/actionlint/${ACTIONLINT_REF}" in ci_text
     assert "download-actionlint.bash" in ci_text
     assert "bash /tmp/download-actionlint.bash \"${ACTIONLINT_VERSION}\"" in ci_text
     assert "${HOME}/.local/bin" in ci_text
