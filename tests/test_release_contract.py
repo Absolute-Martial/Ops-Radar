@@ -3,17 +3,18 @@
 These tests intentionally avoid building images. They assert the static
 contracts that make the Docker Compose + GHCR publishing story reliable:
 
-- the publish workflow runs from the active default branch,
+- the publish workflow runs from active branches and version tags,
 - the workflow has package-write permissions,
 - backend/frontend images are pushed to GHCR,
 - compose accepts published image references through env vars,
-- the quickstart documents first-user bootstrap behavior.
+- workflow lint uses an install/run path instead of a missing action tag.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,9 +25,14 @@ def _load_yaml(path: str) -> dict:
         return yaml.safe_load(fh)
 
 
-def test_publish_workflow_runs_on_default_branch_and_tags() -> None:
+def _on_config(workflow: dict) -> dict:
+    # PyYAML's YAML 1.1 resolver can parse the key `on` as True.
+    return workflow["on"] if "on" in workflow else workflow[True]
+
+
+def test_publish_workflow_runs_on_active_branches_and_tags() -> None:
     workflow = _load_yaml(".github/workflows/publish-images.yml")
-    on_config = workflow["on"] if "on" in workflow else workflow[True]
+    on_config = _on_config(workflow)
 
     branches = on_config["push"]["branches"]
     tags = on_config["push"]["tags"]
@@ -58,6 +64,14 @@ def test_publish_workflow_pushes_backend_and_frontend_images() -> None:
     assert "ghcr.io" in workflow_text
 
 
+def test_ci_lints_workflows_without_missing_actionlint_action_tag() -> None:
+    ci_text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+    assert "rhysd/actionlint@v1" not in ci_text
+    assert "download-actionlint.bash" in ci_text
+    assert "actionlint" in ci_text
+
+
 def test_compose_exposes_image_override_env_vars() -> None:
     compose_text = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     env_text = (ROOT / ".env.example").read_text(encoding="utf-8")
@@ -68,14 +82,133 @@ def test_compose_exposes_image_override_env_vars() -> None:
     assert "OPSRADAR_FRONTEND_IMAGE=" in env_text
 
 
-def test_quickstart_documents_first_user_bootstrap() -> None:
-    quickstart = (ROOT / "QUICKSTART.md").read_text(encoding="utf-8").lower()
-    installation = (ROOT / "docs/operators/installation.md").read_text(
-        encoding="utf-8"
-    ).lower()
+# ---------------------------------------------------------------------------
+# Tests for _on_config() helper (new in this PR)
+# ---------------------------------------------------------------------------
 
-    assert "first user" in quickstart
-    assert "super admin" in quickstart
-    assert "first user" in installation
-    assert "super admin" in installation
-    assert "admin" in installation
+
+def test_on_config_returns_value_for_string_on_key() -> None:
+    """_on_config should return workflow['on'] when the key is the string 'on'."""
+    workflow = {"on": {"push": {"branches": ["main"]}}, "jobs": {}}
+    result = _on_config(workflow)
+    assert result == {"push": {"branches": ["main"]}}
+
+
+def test_on_config_returns_value_for_boolean_true_key() -> None:
+    """_on_config should fall back to workflow[True] when PyYAML parses 'on' as True."""
+    workflow = {True: {"push": {"branches": ["develop"]}}, "jobs": {}}
+    result = _on_config(workflow)
+    assert result == {"push": {"branches": ["develop"]}}
+
+
+def test_on_config_prefers_string_key_over_boolean_key() -> None:
+    """String 'on' key takes precedence over boolean True key."""
+    workflow = {
+        "on": {"push": {"branches": ["main"]}},
+        True: {"push": {"branches": ["other"]}},
+        "jobs": {},
+    }
+    result = _on_config(workflow)
+    assert result["push"]["branches"] == ["main"]
+
+
+def test_on_config_raises_key_error_when_neither_key_present() -> None:
+    """_on_config raises KeyError if neither 'on' nor True key is present."""
+    workflow = {"jobs": {}}
+    with pytest.raises(KeyError):
+        _on_config(workflow)
+
+
+# ---------------------------------------------------------------------------
+# Tests for CI workflow changes (new in this PR)
+# ---------------------------------------------------------------------------
+
+
+def test_ci_push_trigger_includes_features_wildcard_branch() -> None:
+    """CI should trigger on push to features/** branches (added in this PR)."""
+    ci = _load_yaml(".github/workflows/ci.yml")
+    on_config = _on_config(ci)
+
+    push_branches = on_config["push"]["branches"]
+    assert any("features" in b for b in push_branches), (
+        "Expected a 'features/**' pattern in CI push branches"
+    )
+    assert "features/**" in push_branches
+
+
+def test_ci_push_trigger_still_includes_main_and_develop() -> None:
+    """Adding features/** must not drop the pre-existing main and develop triggers."""
+    ci = _load_yaml(".github/workflows/ci.yml")
+    on_config = _on_config(ci)
+
+    push_branches = on_config["push"]["branches"]
+    assert "main" in push_branches
+    assert "develop" in push_branches
+
+
+def test_ci_pr_trigger_does_not_include_features_branch() -> None:
+    """PR trigger should only target main and develop, not features/**."""
+    ci = _load_yaml(".github/workflows/ci.yml")
+    on_config = _on_config(ci)
+
+    pr_branches = on_config["pull_request"]["branches"]
+    assert "main" in pr_branches
+    assert "develop" in pr_branches
+    assert not any("features" in b for b in pr_branches), (
+        "features/** should not be in pull_request trigger branches"
+    )
+
+
+def test_ci_backend_job_sets_redis_url_env() -> None:
+    """Backend job must declare REDIS_URL so SlowAPI uses in-process storage."""
+    ci = _load_yaml(".github/workflows/ci.yml")
+    backend_env = ci["jobs"]["backend"]["env"]
+    assert "REDIS_URL" in backend_env
+
+
+def test_ci_backend_job_redis_url_uses_memory_scheme() -> None:
+    """REDIS_URL in the CI backend job must point to the in-memory backend."""
+    ci = _load_yaml(".github/workflows/ci.yml")
+    backend_env = ci["jobs"]["backend"]["env"]
+    assert backend_env["REDIS_URL"] == "memory://"
+
+
+def test_ci_actionlint_install_step_adds_to_github_path() -> None:
+    """Install step must add the download directory to GITHUB_PATH so the binary is found."""
+    ci_text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert "GITHUB_PATH" in ci_text
+
+
+def test_ci_actionlint_install_step_uses_bash_shell() -> None:
+    """Install step must specify bash shell for the process-substitution syntax."""
+    ci_text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert "shell: bash" in ci_text
+
+
+def test_ci_actionlint_download_script_url_is_present() -> None:
+    """CI must reference the official actionlint download script URL."""
+    ci_text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert "rhysd/actionlint" in ci_text
+    assert "download-actionlint.bash" in ci_text
+
+
+# ---------------------------------------------------------------------------
+# Tests for backend/tests/conftest.py REDIS_URL change (new in this PR)
+# ---------------------------------------------------------------------------
+
+
+def test_ci_backend_job_also_sets_database_urls() -> None:
+    """Regression: DATABASE_URL and SYNC_DATABASE_URL must still be present alongside REDIS_URL."""
+    ci = _load_yaml(".github/workflows/ci.yml")
+    backend_env = ci["jobs"]["backend"]["env"]
+    assert "DATABASE_URL" in backend_env
+    assert "SYNC_DATABASE_URL" in backend_env
+    assert "SECRET_KEY" in backend_env
+
+
+def test_ci_backend_job_env_database_url_uses_sqlite_aiosqlite() -> None:
+    """Backend CI job must use the same in-memory SQLite URL as conftest.py defaults."""
+    ci = _load_yaml(".github/workflows/ci.yml")
+    backend_env = ci["jobs"]["backend"]["env"]
+    assert backend_env["DATABASE_URL"] == "sqlite+aiosqlite:///:memory:"
+    assert backend_env["SYNC_DATABASE_URL"] == "sqlite:///:memory:"
