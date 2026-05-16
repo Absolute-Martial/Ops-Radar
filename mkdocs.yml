@@ -17,6 +17,7 @@ nav:
   - Home: index.md
   - Operators:
       - Overview: operators/overview.md
+      - Installation: operators/installation.md
       - Request Lifecycle: operators/request-lifecycle.md
       - Roles And Ownership: operators/roles-and-ownership.md
       - Slack Intake: operators/slack-intake.md

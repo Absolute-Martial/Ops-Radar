@@ -8,6 +8,31 @@ This repository is the hackathon implementation being prepared for:
 
 OpsRadar is not just a dashboard. It is meant to become the system of record for internal requests such as access requests, Jira project creation, vendor review, onboarding support, and other approval-heavy internal operations.
 
+## Quick Start
+
+For the fastest Docker Compose setup, see:
+
+- [`QUICKSTART.md`](./QUICKSTART.md)
+- [`docs/operators/installation.md`](./docs/operators/installation.md)
+
+Short version:
+
+```bash
+git clone https://github.com/Absolute-Martial/Ops-Radar.git
+cd Ops-Radar
+cp .env.example .env
+# Edit .env and set SECRET_KEY, POSTGRES_PASSWORD, REDIS_PASSWORD, OPS_RADAR_ENCRYPTION_KEY
+docker compose up -d --build
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+On a fresh deployment, the **first user who registers becomes the instance super admin**. Internally, this account receives the global `admin` role. Every later self-registered user starts as an analyst-level user until an admin changes their role.
+
 ## Problem It Solves
 
 Internal operations often fail because the request state is fragmented across Slack, email, Jira, and direct messages.
@@ -220,57 +245,15 @@ Main docs files:
 
 - [`mkdocs.yml`](./mkdocs.yml)
 - [`docs/index.md`](./docs/index.md)
+- [`docs/operators/installation.md`](./docs/operators/installation.md)
 - [`docs/operators/overview.md`](./docs/operators/overview.md)
 - [`docs/operators/request-lifecycle.md`](./docs/operators/request-lifecycle.md)
 - [`docs/operators/roles-and-ownership.md`](./docs/operators/roles-and-ownership.md)
 - [`docs/operators/slack-intake.md`](./docs/operators/slack-intake.md)
 
-
-
-## Just Describing
-
-
-## Quick installation (local development)
-
-Requirements:
-
-- Docker Engine 20.10+ with the Compose V2 plugin
-  (`docker compose`, not the legacy `docker-compose`)
-- ~8 GB RAM free for the containers
-- A copy of this repo
-
-Steps:
-
-```bash
-# 1. Clone
-https://github.com/Absolute-Martial/Ops-Radar.git
-cd Ops-Radar
-
-# 2. Create your .env from the template
-cp .env.example .env
-# Edit .env: set POSTGRES_PASSWORD, REDIS_PASSWORD, SECRET_KEY, and
-# OPS_RADAR_ENCRYPTION_KEY. Commands that generate strong values
-# are inside .env.example.
-
-# 3. Start the full stack with hot-reload for dev
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
-
-# 4. Wait ~30s for migrations to finish, then open
-#    http://localhost:3000 in a browser.
-#    The first user to register is auto-promoted to admin. To
-#    promote a later user, use the ops CLI:
-docker compose exec backend python -m app.cli user promote \
-  --email you@example.com
-```
-
-That's it — edits under `./backend` and `./frontend` hot-reload
-without rebuilding.
-
----
-
 ## Repo layout
 
-```
+```text
 opsradar/
 ├── backend/            # FastAPI + Celery
 │   ├── app/
@@ -279,68 +262,29 @@ opsradar/
 │   │   ├── schemas/    # Pydantic request/response models
 │   │   ├── services/   # Business logic (mining, LLM, connectors, ...)
 │   │   ├── workers/    # Celery tasks (beat schedule, background jobs)
-│   │   ├── mcp/        # Model Context Protocol server (stdio)
+│   │   ├── mcp/        # Model Context Protocol server
 │   │   ├── config.py   # Pydantic-settings env loader
 │   │   ├── database.py # Async + sync SQLAlchemy engines
 │   │   └── main.py     # FastAPI app, middleware wiring, router registration
 │   ├── alembic/        # DB migrations
-│   ├── scripts/        # One-off dev scripts (prompt tuning, bench, etc.)
+│   ├── scripts/        # One-off dev scripts
 │   └── tests/
-├── frontend/           # React + Vite + Zustand + Tailwind
+├── frontend/           # React + Vite + Zustand
 │   ├── src/
-│   │   ├── api/        # API client (auth, mining, ai, ...)
+│   │   ├── api/        # API client
 │   │   ├── components/ # Reusable UI grouped by feature
 │   │   ├── pages/      # Top-level routed pages
-│   │   ├── store/      # Zustand slices (ui, auth, filters, ...)
+│   │   ├── store/      # Zustand slices
 │   │   ├── types/      # Shared TypeScript types
 │   │   └── hooks/      # Custom React hooks
-│   └── nginx.conf      # Serves the built SPA + proxies /api to backend
-├── docs/               # User + contributor documentation
-│   ├── examples/       # Sample event logs (OCEL, XES, CSV)
-│   ├── deploy/             # Kubernetes / helm / BI integration stubs
+├── docs/               # User + operator documentation
+│   └── examples/       # Sample event logs
 ├── docker-compose.yml       # Production-safe default
-├── docker-compose.dev.yml   # Dev override (hot-reload, bind mounts)
+├── docker-compose.dev.yml   # Dev override
+├── QUICKSTART.md
 ├── Makefile
 └── README.md
 ```
-
----
-
-## Coding standards
-
-### Backend (Python)
-
-- **Python 3.11.** Use type hints on all new public functions.
-- **PEP 8** via `ruff check`. Line length is 100 (not 79).
-- **Imports**: stdlib → third-party → local, blank line between groups.
-- **Docstrings**: every public module and function. Prefer a
-  one-sentence summary followed by a paragraph explaining *why*
-  something is the way it is, not just *what* it does. The rest of
-  the codebase is written this way — match the tone.
-- **No `print()`** in production code. Use the `logging` module
-  (structlog is wired up in `services/logging_setup.py`).
-- **Error handling**: catch at the boundary, not the middle. Inside
-  a service function it's usually fine to let exceptions propagate.
-- **DB access**: async session via `Depends(get_db)` for request
-  handlers. Sync engine (`app.database.sync_engine`) only for
-  subprocess paths and the MCP server.
-- **Tests**: pytest + async. Add tests alongside new features under
-  `backend/tests/`.
-
-### Frontend (TypeScript / React)
-
-- **TypeScript strict mode.** No `any` without a `// eslint-disable`
-  comment explaining why.
-- **Functional components only.** No class components.
-- **Zustand for state.** Don't add a new state manager; split the
-  existing store into more slices if it's getting unwieldy.
-- **Tailwind utility classes.** No CSS files (except the one Vite
-  entry). Keep class lists legible — multi-line ternaries are fine.
-- **API calls via `@/api/client`.** Don't call `fetch` directly from
-  components.
-- **File naming**: PascalCase for components and pages, camelCase
-  for hooks and utilities.
-- **Imports**: react / third-party / `@/` (internal) / relative.
 
 ## Containers and Publishing
 
