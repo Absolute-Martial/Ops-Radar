@@ -7,7 +7,7 @@ contracts that make the Docker Compose + GHCR publishing story reliable:
 - the workflow has package-write permissions,
 - backend/frontend images are pushed to GHCR,
 - compose accepts published image references through env vars,
-- workflow lint uses an install/run path instead of a missing action tag,
+- workflow lint uses a pinned actionlint install path,
 - the release workflow creates GitHub releases for v* tags.
 """
 
@@ -92,12 +92,16 @@ def test_release_docs_exist_and_describe_tag_flow() -> None:
     assert "first registered user becomes the instance admin" in release_doc.lower()
 
 
-def test_ci_lints_workflows_without_missing_actionlint_action_tag() -> None:
+def test_ci_lints_workflows_with_pinned_actionlint_install() -> None:
     ci_text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
     assert "rhysd/actionlint@v1" not in ci_text
+    assert "ACTIONLINT_REF=\"v1.7.9\"" in ci_text
+    assert "rhysd/actionlint/${ACTIONLINT_REF}" in ci_text
     assert "download-actionlint.bash" in ci_text
+    assert "${HOME}/.local/bin" in ci_text
     assert "actionlint" in ci_text
+    assert "rhysd/actionlint/main" not in ci_text
 
 
 def test_compose_exposes_image_override_env_vars() -> None:
