@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from asyncio import TimeoutError
 from datetime import timedelta
 
@@ -92,16 +93,28 @@ if workflow is not None:
 async def run_temporal_worker() -> None:  # pragma: no cover - requires external Temporal runtime
     if Client is None or Worker is None or workflow is None:
         raise RuntimeError("temporalio is not installed")
-    client = await Client.connect(
-        settings.TEMPORAL_ADDRESS,
-        namespace=settings.TEMPORAL_NAMESPACE,
-    )
-    worker = Worker(
-        client,
-        task_queue=settings.TEMPORAL_TASK_QUEUE,
-        workflows=[AccessRequestWorkflow],
-    )
-    await worker.run()
+
+    address = settings.TEMPORAL_ADDRESS.strip()
+    if not address:
+        raise RuntimeError("TEMPORAL_ADDRESS is not configured")
+
+    while True:
+        try:
+            client = await Client.connect(
+                address,
+                namespace=settings.TEMPORAL_NAMESPACE,
+            )
+            worker = Worker(
+                client,
+                task_queue=settings.TEMPORAL_TASK_QUEUE,
+                workflows=[AccessRequestWorkflow],
+            )
+            logger.info("Temporal worker connected to %s", address)
+            await worker.run()
+            return
+        except Exception as exc:
+            logger.warning("Temporal worker connection failed for %s: %s", address, exc)
+            await asyncio.sleep(5)
 
 
 if __name__ == "__main__":  # pragma: no cover
