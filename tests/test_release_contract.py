@@ -7,7 +7,8 @@ contracts that make the Docker Compose + GHCR publishing story reliable:
 - the workflow has package-write permissions,
 - backend/frontend images are pushed to GHCR,
 - compose accepts published image references through env vars,
-- workflow lint uses an install/run path instead of a missing action tag.
+- workflow lint uses an install/run path instead of a missing action tag,
+- the release workflow creates GitHub releases for v* tags.
 """
 
 from __future__ import annotations
@@ -61,6 +62,34 @@ def test_publish_workflow_pushes_backend_and_frontend_images() -> None:
     assert "ops-radar-frontend" in workflow_text
     assert "push: true" in workflow_text
     assert "ghcr.io" in workflow_text
+
+
+def test_release_workflow_creates_github_release_for_version_tags() -> None:
+    workflow = _load_yaml(".github/workflows/release.yml")
+    workflow_text = (ROOT / ".github/workflows/release.yml").read_text(
+        encoding="utf-8"
+    )
+    on_config = _on_config(workflow)
+
+    assert "v*" in on_config["push"]["tags"]
+    assert "workflow_dispatch" in on_config
+    assert workflow["permissions"]["contents"] == "write"
+    assert "softprops/action-gh-release@v2" in workflow_text
+    assert "CHANGELOG.md" in workflow_text
+    assert "QUICKSTART.md" in workflow_text
+    assert "ghcr.io/${OWNER_LC}/ops-radar-backend:${TAG}" in workflow_text
+    assert "ghcr.io/${OWNER_LC}/ops-radar-frontend:${TAG}" in workflow_text
+
+
+def test_release_docs_exist_and_describe_tag_flow() -> None:
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    release_doc = (ROOT / "RELEASE.md").read_text(encoding="utf-8")
+
+    assert "0.1.0-preview" in changelog
+    assert "Known limitations" in changelog
+    assert "git tag v0.1.0-preview" in release_doc
+    assert "GHCR" in release_doc
+    assert "first registered user becomes the instance admin" in release_doc.lower()
 
 
 def test_ci_lints_workflows_without_missing_actionlint_action_tag() -> None:
