@@ -300,7 +300,12 @@ Published images can be used with compose through:
 - `OPSRADAR_FRONTEND_IMAGE`
 
 For Dokploy, use [`docker-compose.dokploy.yml`](./docker-compose.dokploy.yml).
-It pulls the GHCR images directly and does not publish the frontend host port.
+It pulls the GHCR images directly, keeps the app off host port bindings, and
+includes a `cloudflared` service on the shared `dokploy-network` so the tunnel
+can resolve Dokploy routing.
+
+Set `CLOUDFLARE_TUNNEL_TOKEN` in the Dokploy environment when you use the
+bundled tunnel service.
 
 ## Repo Notes
 

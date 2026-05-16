@@ -332,6 +332,22 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  # Dokploy tunnel connector for this stack.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: *restart_policy
+    logging: *logging
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN is required}
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+    networks:
+      - dokploy-network
+    security_opt:
+      - no-new-privileges:true
+
 volumes:
   postgres_data:
     driver: local
