@@ -299,6 +299,9 @@ Published images can be used with compose through:
 - `OPSRADAR_BACKEND_IMAGE`
 - `OPSRADAR_FRONTEND_IMAGE`
 
+For Dokploy, use [`docker-compose.dokploy.yml`](./docker-compose.dokploy.yml).
+It pulls the GHCR images directly and does not publish the frontend host port.
+
 ## Repo Notes
 
 - The active implementation work is in the current OpsRadar checkout.

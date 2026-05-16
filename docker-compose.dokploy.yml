@@ -1,0 +1,338 @@
+name: opsradar-dokploy
+
+# Dokploy / GHCR production compose.
+#
+# Use this file in Dokploy instead of docker-compose.yml. It pulls the
+# published GitHub Container Registry images directly and avoids host
+# port bindings so Traefik / Cloudflare Tunnel can route traffic cleanly.
+
+x-app-env: &app_env
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-opsradar}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-opsradar}
+  SYNC_DATABASE_URL: postgresql://${POSTGRES_USER:-opsradar}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-opsradar}
+  REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+  SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required — generate with `openssl rand -hex 32`}
+  OPS_RADAR_ENCRYPTION_KEY: ${OPS_RADAR_ENCRYPTION_KEY:-}
+  ENV: ${ENV:-production}
+  UPLOAD_DIR: /data/uploads
+  CORS_ORIGINS: ${CORS_ORIGINS:-https://opsradar-hackathon.susankshakya.com.np,http://localhost:3000,http://localhost}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  OPS_RADAR_LLM_PROVIDER: ${OPS_RADAR_LLM_PROVIDER:-null}
+  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+  OPENROUTER_MODEL: ${OPENROUTER_MODEL:-anthropic/claude-haiku-4-5}
+  OPENROUTER_SITE_URL: ${OPENROUTER_SITE_URL:-}
+  OPENROUTER_APP_NAME: ${OPENROUTER_APP_NAME:-OpsRadar}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASS: ${SMTP_PASS:-}
+  SMTP_FROM: ${SMTP_FROM:-alerts@opsradar.local}
+  DEMO_MODE: ${DEMO_MODE:-0}
+  DEMO_USER_EMAIL: ${DEMO_USER_EMAIL:-demo@demo.opsradar.local}
+  DEMO_USER_NAME: ${DEMO_USER_NAME:-Demo Visitor}
+  SEED_SAMPLE_DATA_ON_FIRST_BOOT: ${SEED_SAMPLE_DATA_ON_FIRST_BOOT:-0}
+  TEMPORAL_ENABLED: ${TEMPORAL_ENABLED:-1}
+  TEMPORAL_HOST: ${TEMPORAL_HOST:-temporal}
+  TEMPORAL_PORT: ${TEMPORAL_PORT:-7233}
+  TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-temporal:7233}
+  TEMPORAL_SERVER_URL: ${TEMPORAL_SERVER_URL:-temporal:7233}
+  TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+  TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-opsradar-access-fastlane}
+  NOVU_ENABLED: ${NOVU_ENABLED:-0}
+  NOVU_API_URL: ${NOVU_API_URL:-https://api.novu.co}
+  NOVU_API_KEY: ${NOVU_API_KEY:-}
+  NOVU_APP_ID: ${NOVU_APP_ID:-}
+  CASBIN_ENABLED: ${CASBIN_ENABLED:-0}
+  CASBIN_MODEL: ${CASBIN_MODEL:-}
+  CASBIN_POLICY: ${CASBIN_POLICY:-}
+
+x-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-restart: &restart_policy unless-stopped
+
+services:
+  db:
+    image: postgres:16.6-alpine
+    restart: *restart_policy
+    logging: *logging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-opsradar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required — set it in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-opsradar}
+    shm_size: 256m
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-opsradar}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    mem_limit: 2g
+    networks:
+      - opsradar
+    security_opt:
+      - no-new-privileges:true
+
+  redis:
+    image: redis:7.4-alpine
+    restart: *restart_policy
+    logging: *logging
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD is required — set it in .env}
+      - --appendonly
+      - "yes"
+      - --save
+      - "60 1"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    mem_limit: 1g
+    networks:
+      - opsradar
+    security_opt:
+      - no-new-privileges:true
+
+  temporal-db:
+    image: postgres:16.6-alpine
+    restart: *restart_policy
+    logging: *logging
+    environment:
+      POSTGRES_USER: ${TEMPORAL_DB_USER:-temporal}
+      POSTGRES_PASSWORD: ${TEMPORAL_DB_PASSWORD:-temporal}
+      POSTGRES_DB: ${TEMPORAL_DB_NAME:-temporal}
+    volumes:
+      - temporal_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TEMPORAL_DB_USER:-temporal} -d ${TEMPORAL_DB_NAME:-temporal}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    mem_limit: 1g
+    networks:
+      - opsradar
+    security_opt:
+      - no-new-privileges:true
+
+  temporal:
+    image: temporalio/auto-setup:${TEMPORAL_VERSION:-1.29.6.1}
+    restart: *restart_policy
+    logging: *logging
+    volumes:
+      - ./temporal/dynamicconfig:/etc/temporal/config/dynamicconfig:ro
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      DBNAME: ${TEMPORAL_DB_NAME:-temporal}
+      VISIBILITY_DBNAME: ${TEMPORAL_VISIBILITY_DB_NAME:-temporal_visibility}
+      POSTGRES_USER: ${TEMPORAL_DB_USER:-temporal}
+      POSTGRES_PWD: ${TEMPORAL_DB_PASSWORD:-temporal}
+      POSTGRES_SEEDS: temporal-db
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+      DEFAULT_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+      DEFAULT_NAMESPACE_RETENTION: ${TEMPORAL_DEFAULT_NAMESPACE_RETENTION:-72h}
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CLI_ADDRESS: temporal:7233
+    expose:
+      - "7233"
+    depends_on:
+      temporal-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z $(hostname -i) 7233"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    mem_limit: 2g
+    networks:
+      - opsradar
+    security_opt:
+      - no-new-privileges:true
+
+  temporal-ui:
+    image: temporalio/ui:${TEMPORAL_UI_VERSION:-2.49.1}
+    restart: *restart_policy
+    logging: *logging
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: ${TEMPORAL_UI_CORS_ORIGINS:-http://localhost:3000,http://localhost:8088}
+      TEMPORAL_DEFAULT_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+    expose:
+      - "8080"
+    depends_on:
+      temporal:
+        condition: service_started
+    mem_limit: 512m
+    networks:
+      - opsradar
+    security_opt:
+      - no-new-privileges:true
+
+  backend:
+    image: ${OPSRADAR_BACKEND_IMAGE:-ghcr.io/absolute-martial/ops-radar-backend:latest}
+    restart: *restart_policy
+    logging: *logging
+    environment: *app_env
+    volumes:
+      - upload_data:/data/uploads
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+    mem_limit: 3g
+    networks:
+      - opsradar
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+
+  worker:
+    image: ${OPSRADAR_BACKEND_IMAGE:-ghcr.io/absolute-martial/ops-radar-backend:latest}
+    restart: *restart_policy
+    logging: *logging
+    environment: *app_env
+    volumes:
+      - upload_data:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'celery.*worker' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    mem_limit: 2g
+    networks:
+      - opsradar
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+
+  beat:
+    image: ${OPSRADAR_BACKEND_IMAGE:-ghcr.io/absolute-martial/ops-radar-backend:latest}
+    restart: *restart_policy
+    logging: *logging
+    environment:
+      <<: *app_env
+      PYTHONPATH: /app
+    volumes:
+      - upload_data:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - "mkdir -p /home/opsradar/.beat && exec celery -A app.workers.celery_app beat --loglevel=info --schedule=/home/opsradar/.beat/celerybeat-schedule"
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'celery.*beat' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 512m
+    networks:
+      - opsradar
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+
+  temporal-worker:
+    image: ${OPSRADAR_BACKEND_IMAGE:-ghcr.io/absolute-martial/ops-radar-backend:latest}
+    restart: *restart_policy
+    logging: *logging
+    environment: *app_env
+    depends_on:
+      temporal:
+        condition: service_healthy
+    command: python -m app.workers.temporal_ops
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'app.workers.temporal_ops' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 1g
+    networks:
+      - opsradar
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+
+  frontend:
+    image: ${OPSRADAR_FRONTEND_IMAGE:-ghcr.io/absolute-martial/ops-radar-frontend:latest}
+    restart: *restart_policy
+    logging: *logging
+    expose:
+      - "80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    mem_limit: 512m
+    networks:
+      - opsradar
+      - dokploy-network
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  temporal_postgres_data:
+    driver: local
+  upload_data:
+    driver: local
+
+networks:
+  opsradar:
+    driver: bridge
+  dokploy-network:
+    external: true
