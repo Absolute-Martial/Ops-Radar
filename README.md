@@ -301,8 +301,9 @@ Published images can be used with compose through:
 
 For Dokploy, use [`docker-compose.dokploy.yml`](./docker-compose.dokploy.yml).
 It pulls the GHCR images directly, keeps the app off host port bindings, and
-includes a `cloudflared` service on the shared `dokploy-network` so the tunnel
-can resolve Dokploy routing.
+includes a `cloudflared` service on the app and Dokploy networks so the tunnel
+can resolve either `frontend:80` for direct app access or
+`dokploy-traefik:80` for shared Traefik routing.
 
 Set `CLOUDFLARE_TUNNEL_TOKEN` in the Dokploy environment when you use the
 bundled tunnel service.

@@ -344,6 +344,7 @@ services:
       - --no-autoupdate
       - run
     networks:
+      - opsradar
       - dokploy-network
     security_opt:
       - no-new-privileges:true
