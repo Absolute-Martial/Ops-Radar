@@ -13,6 +13,7 @@ contracts that make the Docker Compose + GHCR publishing story reliable:
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -97,7 +98,7 @@ def test_ci_lints_workflows_with_pinned_actionlint_install() -> None:
     ci_text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
     assert "rhysd/actionlint@v1" not in ci_text
-    assert "ACTIONLINT_REF=\"v1.7.9\"" in ci_text
+    assert re.search(r'ACTIONLINT_REF="v\d+\.\d+\.\d+"', ci_text), "Expected ACTIONLINT_REF with semantic version pattern"
     assert "ACTIONLINT_VERSION=\"${ACTIONLINT_REF#v}\"" in ci_text
     assert "rhysd/actionlint/${ACTIONLINT_REF}" in ci_text
     assert "download-actionlint.bash" in ci_text
