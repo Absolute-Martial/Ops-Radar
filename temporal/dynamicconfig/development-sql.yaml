@@ -1,0 +1,6 @@
+# Temporal dynamic config for the local compose stack.
+#
+# The server image expects this file to exist when
+# DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml is set.
+# The stack does not need any overrides for the local dev flow, so the
+# file intentionally stays empty for now.
