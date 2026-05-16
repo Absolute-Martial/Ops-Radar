@@ -73,6 +73,12 @@ jobs:
     name: Backend tests
     runs-on: ubuntu-latest
     needs: [workflow-lint]
+    env:
+      ENV: development
+      SECRET_KEY: ci-test-secret-key-long-enough
+      DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+      SYNC_DATABASE_URL: "sqlite:///:memory:"
+      REDIS_URL: "memory://"
     steps:
       - uses: actions/checkout@v4
 
@@ -96,12 +102,6 @@ jobs:
 
       - name: Run pytest
         working-directory: backend
-        env:
-          ENV: development
-          SECRET_KEY: ci-test-secret-key-long-enough
-          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
-          SYNC_DATABASE_URL: "sqlite:///:memory:"
-          REDIS_URL: "memory://"
         run: |
           python -m pytest -q --tb=short
 
