@@ -16,8 +16,11 @@ jobs:
       - name: Install actionlint
         shell: bash
         run: |
-          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
-          echo "${PWD}" >> "${GITHUB_PATH}"
+          ACTIONLINT_REF="v1.7.9"  # pin intentionally (tag or commit SHA)
+          curl -sSfL "https://raw.githubusercontent.com/rhysd/actionlint/${ACTIONLINT_REF}/scripts/download-actionlint.bash" -o /tmp/download-actionlint.bash
+          mkdir -p "${HOME}/.local/bin"
+          bash /tmp/download-actionlint.bash "${ACTIONLINT_REF}" "${HOME}/.local/bin"
+          echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
 
       - name: Run actionlint
         run: actionlint
