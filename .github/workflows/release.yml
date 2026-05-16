@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release, for example v0.1.0-preview"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          if [[ ! "${TAG}" =~ ^v ]]; then
+            echo "Release tag must start with v, got ${TAG}" >&2
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build release notes
+        id: notes
+        shell: bash
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          OWNER_LC="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          BACKEND_IMAGE="ghcr.io/${OWNER_LC}/ops-radar-backend:${TAG}"
+          FRONTEND_IMAGE="ghcr.io/${OWNER_LC}/ops-radar-frontend:${TAG}"
+
+          cat > release-notes.md <<EOF
+          # OpsRadar ${TAG}
+
+          OpsRadar is an internal request coordination system for teams whose requests, approvals, fulfillment steps, and audit trails are scattered across Slack, Jira, email, and manual follow-up.
+
+          ## Highlights
+
+          - Request Catalog for structured internal access requests
+          - Approval Inbox for role-routed decisions
+          - Request lifecycle timeline and audit trail
+          - Simulated fulfillment and access grants
+          - Friction Dashboards for operational bottlenecks
+          - Docker Compose quickstart
+          - First-user admin bootstrap
+          - GHCR backend/frontend image support
+
+          ## Install
+
+          See QUICKSTART.md for the fastest Docker Compose setup.
+
+          The first registered user on a fresh deployment becomes the instance admin.
+
+          ## Docker images
+
+          Backend:
+          ${BACKEND_IMAGE}
+
+          Frontend:
+          ${FRONTEND_IMAGE}
+
+          ## Notes
+
+          - Fulfillment is simulated in this preview unless a deployment explicitly wires real provisioning connectors.
+          - Arbitrary Slack message parsing is intentionally not claimed as live; OpsRadar favors controlled intake.
+          - If GHCR packages are private after first publish, open each package in GitHub package settings and change visibility to Public.
+
+          ## Changelog
+
+          See CHANGELOG.md for release history and known limitations.
+          EOF
+
+      - name: Create or update GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: OpsRadar ${{ steps.tag.outputs.tag }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: ${{ contains(steps.tag.outputs.tag, 'preview') || contains(steps.tag.outputs.tag, 'alpha') || contains(steps.tag.outputs.tag, 'beta') || contains(steps.tag.outputs.tag, 'rc') }}

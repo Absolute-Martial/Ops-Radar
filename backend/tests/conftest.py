@@ -1,4 +1,4 @@
-"""Pytest fixtures: isolated SQLite-backed FlowMiner app for authorization tests.
+"""Pytest fixtures: isolated SQLite-backed OpsRadar app for authorization tests.
 
 We deliberately run against an in-process SQLite database (not the real
 PostgreSQL) so tests are fast, hermetic, and don't need a running container.
@@ -18,6 +18,10 @@ os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("SYNC_DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-at-least-sixteen-chars")
 os.environ.setdefault("ENV", "development")
+# SlowAPI uses settings.REDIS_URL at import time. CI backend tests do not
+# start a Redis service, so force the limiter onto the in-process storage
+# backend before app.services.rate_limit is imported by app.main.
+os.environ.setdefault("REDIS_URL", "memory://")
 
 import pytest
 import pytest_asyncio  # noqa: F401

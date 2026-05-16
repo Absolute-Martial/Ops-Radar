@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, "features/**"]
   pull_request:
     branches: [main, develop]
 
@@ -13,8 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install actionlint
+        shell: bash
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          echo "${PWD}" >> "${GITHUB_PATH}"
+
       - name: Run actionlint
-        uses: rhysd/actionlint@v1
+        run: actionlint
 
   release-contract:
     name: Release contract tests
@@ -91,6 +97,7 @@ jobs:
           SECRET_KEY: ci-test-secret-key-long-enough
           DATABASE_URL: "sqlite+aiosqlite:///:memory:"
           SYNC_DATABASE_URL: "sqlite:///:memory:"
+          REDIS_URL: "memory://"
         run: |
           python -m pytest -q --tb=short
 

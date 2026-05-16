@@ -7,7 +7,8 @@ contracts that make the Docker Compose + GHCR publishing story reliable:
 - the workflow has package-write permissions,
 - backend/frontend images are pushed to GHCR,
 - compose accepts published image references through env vars,
-- workflow lint uses an install/run path instead of a missing action tag.
+- workflow lint uses an install/run path instead of a missing action tag,
+- the release workflow creates GitHub releases for v* tags.
 """
 
 from __future__ import annotations
